@@ -79,56 +79,73 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, onChildAdded, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, onValue, get } from 
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    // Firebase config — paste your values here
-    const firebaseConfig = {
-      apiKey: "AIzaSyC17PR2IuKgyKCMEn0ZxfBdlieoRibvmlE",
-      authDomain: "vent-3aa4c.firebaseapp.com",
-      databaseURL: "https://vent-3aa4c-default-rtdb.firebaseio.com",
-      projectId: "vent-3aa4c",
-      storageBucket: "vent-3aa4c.firebasestorage.app",
-      messagingSenderId: "1086002965355",
-      appId: "1:1086002965355:web:89c327d5d88acc4414ba2e"
-    };
+const firebaseConfig = {
+    apiKey: "AIzaSyC17PR2IuKgyKCMEn0ZxfBdlieoRibvmlE",
+    authDomain: "vent-3aa4c.firebaseapp.com",
+    databaseURL: "https://vent-3aa4c-default-rtdb.firebaseio.com",
+    projectId: "vent-3aa4c",
+    storageBucket: "vent-3aa4c.firebasestorage.app",
+    messagingSenderId: "1086002965355",
+    appId: "1:1086002965355:web:89c327d5d88acc4414ba2e"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-    // Read session ID and user ID from URL parameters
-    const params = new URLSearchParams(window.location.search);
-    const sessionID = params.get('session');
-    const userID = params.get('user');
+const params = new URLSearchParams(window.location.search);
+const sessionID = params.get('session');
+const userID = params.get('user');
 
-    if (!sessionID || !userID) {
-      document.getElementById('systemMessage').textContent = 
-        'Session not found. Please return to the app.';
-    } else {
-      const messagesRef = ref(db, `chats/${sessionID}/messages`);
-      const chatContainer = document.getElementById('chatContainer');
+const chatContainer = document.getElementById('chatContainer');
+let lastRenderedCount = 0;
 
-      // Listen for new messages in real time
-      onChildAdded(messagesRef, (snapshot) => {
-        const message = snapshot.val();
-        if (!message) return;
+if (!sessionID || !userID) {
+  document.getElementById('systemMessage').textContent = 
+    'Session not found. Please return to the app.';
+} else {
+  const messageCountRef = ref(db, `chats/${sessionID}/messageCount`);
 
-        const bubble = document.createElement('div');
+  onValue(messageCountRef, async (snapshot) => {
+    const count = snapshot.val();
+    if (!count || count <= lastRenderedCount) return;
 
-        if (message.type === 'system') {
-          bubble.className = 'system';
-          bubble.textContent = message.text;
-        } else if (message.sender === userID) {
-          bubble.className = 'sent';
-          bubble.textContent = message.text;
-        } else {
-          bubble.className = 'received';
-          bubble.textContent = message.text;
-        }
+    for (let i = lastRenderedCount + 1; i <= count; i++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const msgRef = ref(db, `chats/${sessionID}/messages/msg_${i}`);
+      const msgSnapshot = await get(msgRef);
+      const message = msgSnapshot.val();
+      
+      if (!message || !message.text) continue;
 
-        chatContainer.appendChild(bubble);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      });
+      const bubble = document.createElement('div');
+
+      if (message.sender === userID) {
+        bubble.className = 'sent';
+      } else {
+        bubble.className = 'received';
+      }
+
+      bubble.textContent = message.text;
+      chatContainer.appendChild(bubble);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
-  </script>
-</body>
-</html>
+
+    lastRenderedCount = count;
+  });
+
+  const statusRef = ref(db, `chats/${sessionID}/status`);
+  onValue(statusRef, (snapshot) => {
+    const status = snapshot.val();
+    if (status === 'ended') {
+      const endMsg = document.createElement('div');
+      endMsg.className = 'system';
+      endMsg.textContent = 'This session has ended. Thank you for being here.';
+      chatContainer.appendChild(endMsg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  });
+}
