@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vent Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;500&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #D9E6D2;
+      font-family: 'Barlow', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #systemMessage {
+      text-align: center;
+      color: #4A4A4A;
+      font-family: 'Bitter', serif;
+      font-size: 13px;
+      opacity: 0.6;
+      padding: 10px;
+    }
+
+    #chatContainer {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .sent {
+      align-self: flex-end;
+      background: #F0EBE5;
+      color: #4A4A4A;
+      padding: 8px 12px;
+      border-radius: 18px 18px 4px 18px;
+      max-width: 75%;
+      word-wrap: break-word;
+      font-size: 15px;
+    }
+
+    .received {
+      align-self: flex-start;
+      background: #FFFFFF;
+      color: #4A4A4A;
+      padding: 8px 12px;
+      border-radius: 18px 18px 18px 4px;
+      max-width: 75%;
+      word-wrap: break-word;
+      font-size: 15px;
+    }
+
+    .system {
+      align-self: center;
+      color: #4A4A4A;
+      font-family: 'Bitter', serif;
+      font-size: 12px;
+      opacity: 0.6;
+      text-align: center;
+      padding: 4px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <p id="systemMessage">You are now connected with a peer. Remember to be kind.</p>
+  <div id="chatContainer"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onChildAdded, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // Firebase config — paste your values here
+    const firebaseConfig = {
+      apiKey: "AIzaSyC17PR2IuKgyKCMEn0ZxfBdlieoRibvmlE",
+      authDomain: "vent-3aa4c.firebaseapp.com",
+      databaseURL: "https://vent-3aa4c-default-rtdb.firebaseio.com",
+      projectId: "vent-3aa4c",
+      storageBucket: "vent-3aa4c.firebasestorage.app",
+      messagingSenderId: "1086002965355",
+      appId: "1:1086002965355:web:89c327d5d88acc4414ba2e"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Read session ID and user ID from URL parameters
+    const params = new URLSearchParams(window.location.search);
+    const sessionID = params.get('session');
+    const userID = params.get('user');
+
+    if (!sessionID || !userID) {
+      document.getElementById('systemMessage').textContent = 
+        'Session not found. Please return to the app.';
+    } else {
+      const messagesRef = ref(db, `chats/${sessionID}/messages`);
+      const chatContainer = document.getElementById('chatContainer');
+
+      // Listen for new messages in real time
+      onChildAdded(messagesRef, (snapshot) => {
+        const message = snapshot.val();
+        if (!message) return;
+
+        const bubble = document.createElement('div');
+
+        if (message.type === 'system') {
+          bubble.className = 'system';
+          bubble.textContent = message.text;
+        } else if (message.sender === userID) {
+          bubble.className = 'sent';
+          bubble.textContent = message.text;
+        } else {
+          bubble.className = 'received';
+          bubble.textContent = message.text;
+        }
+
+        chatContainer.appendChild(bubble);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      });
+    }
+  </script>
+</body>
+</html>
