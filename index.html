@@ -137,6 +137,15 @@ if (!sessionID || !userID) {
     lastRenderedCount = count;
   });
 
+  const chatType = params.get('type') || 'peer';
+
+const systemMsg = document.getElementById('systemMessage');
+if (chatType === 'ai') {
+  systemMsg.textContent = 
+    'You are now chatting with Vent AI. Remember that this is not a substitute for therapy.';
+  systemMsg.style.opacity = '0.8';
+}
+
   const statusRef = ref(db, `chats/${sessionID}/status`);
   onValue(statusRef, (snapshot) => {
     const status = snapshot.val();
