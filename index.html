@@ -146,6 +146,44 @@ if (chatType === 'ai') {
   systemMsg.style.opacity = '0.8';
 }
 
+const aiResponseRef = ref(db, `ai_chats/ai_${userID}/latestResponse`);
+let lastAIResponse = '';
+
+onValue(aiResponseRef, (snapshot) => {
+  const raw = snapshot.val();
+  if (!raw || raw === lastAIResponse) return;
+  lastAIResponse = raw;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const text = parsed.candidates[0].content.parts[0].text;
+    if (!text) return;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'received';
+    bubble.textContent = text;
+    chatContainer.appendChild(bubble);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  } catch(e) {
+    console.log('Gemini parse error:', e);
+  }
+});
+
+const userMessageRef = ref(db, `ai_chats/ai_${userID}/userMessage`);
+let lastUserMessage = '';
+
+onValue(userMessageRef, (snapshot) => {
+  const text = snapshot.val();
+  if (!text || text === lastUserMessage) return;
+  lastUserMessage = text;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'sent';
+  bubble.textContent = text;
+  chatContainer.appendChild(bubble);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+});
+
   const statusRef = ref(db, `chats/${sessionID}/status`);
   onValue(statusRef, (snapshot) => {
     const status = snapshot.val();
