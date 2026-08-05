@@ -150,24 +150,35 @@ const aiResponseRef = ref(db, `ai_chats/ai_${userID}/latestResponse`);
 let lastAIResponse = '';
 
 onValue(aiResponseRef, (snapshot) => {
-  const raw = snapshot.val();
-  if (!raw || raw === lastAIResponse) return;
-  lastAIResponse = raw;
-
-  try {
-    const parsed = JSON.parse(raw);
-    const text = parsed.candidates[0].content.parts[0].text;
-    if (!text) return;
+    const raw = snapshot.val();
+    if (!raw || raw === lastAIResponse) return;
+    lastAIResponse = raw;
 
     const bubble = document.createElement('div');
     bubble.className = 'received';
-    bubble.textContent = text;
+
+    // Safely parse JSON if it is a JSON string, otherwise use the raw text directly
+    if (typeof raw === 'string' && (raw.trim().startsWith('{') || raw.trim().startsWith('['))) {
+        try {
+            const parsed = JSON.parse(raw);
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            bubble.textContent = text || raw;
+        } catch(e) {
+            console.log('Gemini parse error, falling back to raw string:', e);
+            bubble.textContent = raw;
+        }
+    } else if (typeof raw === 'object' && raw !== null) {
+        // Handle cases where Firebase SDK automatically parsed it into an object
+        const text = raw.candidates?.[0]?.content?.parts?.[0]?.text;
+        bubble.textContent = text || JSON.stringify(raw);
+    } else {
+        bubble.textContent = raw;
+    }
+
     chatContainer.appendChild(bubble);
     chatContainer.scrollTop = chatContainer.scrollHeight;
-  } catch(e) {
-    console.log('Gemini parse error:', e);
-  }
 });
+
 
 const userMessageRef = ref(db, `ai_chats/ai_${userID}/userMessage`);
 let lastUserMessage = '';
