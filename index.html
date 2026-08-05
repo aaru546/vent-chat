@@ -74,136 +74,159 @@
 </head>
 
 <body>
-  <p id="systemMessage">You are now connected with a peer. Remember to be kind.</p>
+  <p id="systemMessage"></p>
   <div id="chatContainer"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, get } from 
-  "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const firebaseConfig = {
-    apiKey: "AIzaSyC17PR2IuKgyKCMEn0ZxfBdlieoRibvmlE",
-    authDomain: "vent-3aa4c.firebaseapp.com",
-    databaseURL: "https://vent-3aa4c-default-rtdb.firebaseio.com",
-    projectId: "vent-3aa4c",
-    storageBucket: "vent-3aa4c.firebasestorage.app",
-    messagingSenderId: "1086002965355",
-    appId: "1:1086002965355:web:89c327d5d88acc4414ba2e"
-};
+    const firebaseConfig = {
+      apiKey: "AIzaSyC17PR2IuKgyKCMEn0ZxfBdlieoRibvmlE",
+      authDomain: "vent-3aa4c.firebaseapp.com",
+      databaseURL: "https://vent-3aa4c-default-rtdb.firebaseio.com",
+      projectId: "vent-3aa4c",
+      storageBucket: "vent-3aa4c.firebasestorage.app",
+      messagingSenderId: "1086002965355",
+      appId: "1:1086002965355:web:89c327d5d88acc4414ba2e"
+    };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-const params = new URLSearchParams(window.location.search);
-const sessionID = params.get('session');
-const userID = params.get('user');
+    const params = new URLSearchParams(window.location.search);
+    const sessionID = params.get('session');
+    const userID = params.get('user');
+    const chatType = params.get('type') || 'peer';
 
-const chatContainer = document.getElementById('chatContainer');
-let lastRenderedCount = 0;
+    const systemMsg = document.getElementById('systemMessage');
+    const chatContainer = document.getElementById('chatContainer');
 
-if (!sessionID || !userID) {
-  document.getElementById('systemMessage').textContent = 
-    'Session not found. Please return to the app.';
-} else {
-  const messageCountRef = ref(db, `chats/${sessionID}/messageCount`);
+    if (!sessionID || !userID) {
+      systemMsg.textContent = 'Session not found. Please return to the app.';
+    } else {
 
-  onValue(messageCountRef, async (snapshot) => {
-    const count = snapshot.val();
-    if (!count || count <= lastRenderedCount) return;
-
-    for (let i = lastRenderedCount + 1; i <= count; i++) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const msgRef = ref(db, `chats/${sessionID}/messages/msg_${i}`);
-      const msgSnapshot = await get(msgRef);
-      const message = msgSnapshot.val();
-      
-      if (!message || !message.text) continue;
-
-      const bubble = document.createElement('div');
-
-      if (message.sender === userID) {
-        bubble.className = 'sent';
+      // Set system message based on chat type
+      if (chatType === 'ai') {
+        systemMsg.textContent = 
+          'You are now chatting with Vent AI. Remember that this is not a substitute for therapy.';
+        systemMsg.style.opacity = '0.8';
       } else {
-        bubble.className = 'received';
+        systemMsg.textContent = 
+          'You are now connected with a peer. Remember to be kind.';
       }
 
-      bubble.textContent = message.text;
-      chatContainer.appendChild(bubble);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+      // ── PEER CHAT ──────────────────────────────────────────
+      if (chatType === 'peer') {
+
+        let lastRenderedCount = 0;
+
+        const messageCountRef = ref(db, `chats/${sessionID}/messageCount`);
+
+        onValue(messageCountRef, async (snapshot) => {
+          const count = snapshot.val();
+          if (!count || count <= lastRenderedCount) return;
+
+          for (let i = lastRenderedCount + 1; i <= count; i++) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const msgRef = ref(db, `chats/${sessionID}/messages/msg_${i}`);
+            const msgSnapshot = await get(msgRef);
+            const message = msgSnapshot.val();
+
+            if (!message || !message.text) continue;
+
+            const bubble = document.createElement('div');
+            bubble.className = message.sender === userID ? 'sent' : 'received';
+            bubble.textContent = message.text;
+            chatContainer.appendChild(bubble);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+
+          lastRenderedCount = count;
+        });
+
+        const statusRef = ref(db, `chats/${sessionID}/status`);
+        onValue(statusRef, (snapshot) => {
+          const status = snapshot.val();
+          if (status === 'ended') {
+            const endMsg = document.createElement('div');
+            endMsg.className = 'system';
+            endMsg.textContent = 'This session has ended. Thank you for being here.';
+            chatContainer.appendChild(endMsg);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+        });
+
+      }
+
+      // ── AI CHAT ────────────────────────────────────────────
+      if (chatType === 'ai') {
+
+        // Listen for user messages
+        const userMessageRef = ref(db, `ai_chats/ai_${userID}/userMessage`);
+        let lastUserMessage = '';
+
+        onValue(userMessageRef, (snapshot) => {
+          const text = snapshot.val();
+          if (!text || text === lastUserMessage) return;
+          lastUserMessage = text;
+
+          const bubble = document.createElement('div');
+          bubble.className = 'sent';
+          bubble.textContent = text;
+          chatContainer.appendChild(bubble);
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        });
+
+        // Listen for AI responses
+        const aiResponseRef = ref(db, `ai_chats/ai_${userID}/latestResponse`);
+        let lastAIResponse = '';
+
+        onValue(aiResponseRef, (snapshot) => {
+          const raw = snapshot.val();
+          if (!raw || raw === lastAIResponse) return;
+          lastAIResponse = raw;
+
+          let text = '';
+
+          if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+            try {
+              const parsed = JSON.parse(raw);
+              text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || raw;
+            } catch(e) {
+              text = raw;
+            }
+          } else if (typeof raw === 'object' && raw !== null) {
+            text = raw.candidates?.[0]?.content?.parts?.[0]?.text 
+                   || JSON.stringify(raw);
+          } else {
+            text = raw;
+          }
+
+          const bubble = document.createElement('div');
+          bubble.className = 'received';
+          bubble.textContent = text;
+          chatContainer.appendChild(bubble);
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        });
+
+        // Listen for AI session end
+        const aiStatusRef = ref(db, `ai_chats/ai_${userID}/status`);
+        onValue(aiStatusRef, (snapshot) => {
+          const status = snapshot.val();
+          if (status === 'ended') {
+            const endMsg = document.createElement('div');
+            endMsg.className = 'system';
+            endMsg.textContent = 'This session has ended. Thank you for being here.';
+            chatContainer.appendChild(endMsg);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+        });
+
+      }
+
     }
-
-    lastRenderedCount = count;
-  });
-
-  const chatType = params.get('type') || 'peer';
-
-const systemMsg = document.getElementById('systemMessage');
-if (chatType === 'ai') {
-  systemMsg.textContent = 
-    'You are now chatting with Vent AI. Remember that this is not a substitute for therapy.';
-  systemMsg.style.opacity = '0.8';
-}
-
-const aiResponseRef = ref(db, `ai_chats/ai_${userID}/latestResponse`);
-let lastAIResponse = '';
-
-onValue(aiResponseRef, (snapshot) => {
-    const raw = snapshot.val();
-    if (!raw || raw === lastAIResponse) return;
-    lastAIResponse = raw;
-
-    const bubble = document.createElement('div');
-    bubble.className = 'received';
-
-    // Safely parse JSON if it is a JSON string, otherwise use the raw text directly
-    if (typeof raw === 'string' && (raw.trim().startsWith('{') || raw.trim().startsWith('['))) {
-        try {
-            const parsed = JSON.parse(raw);
-            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-            bubble.textContent = text || raw;
-        } catch(e) {
-            console.log('Gemini parse error, falling back to raw string:', e);
-            bubble.textContent = raw;
-        }
-    } else if (typeof raw === 'object' && raw !== null) {
-        // Handle cases where Firebase SDK automatically parsed it into an object
-        const text = raw.candidates?.[0]?.content?.parts?.[0]?.text;
-        bubble.textContent = text || JSON.stringify(raw);
-    } else {
-        bubble.textContent = raw;
-    }
-
-    chatContainer.appendChild(bubble);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-});
-
-
-const userMessageRef = ref(db, `ai_chats/ai_${userID}/userMessage`);
-let lastUserMessage = '';
-
-onValue(userMessageRef, (snapshot) => {
-  const text = snapshot.val();
-  if (!text || text === lastUserMessage) return;
-  lastUserMessage = text;
-
-  const bubble = document.createElement('div');
-  bubble.className = 'sent';
-  bubble.textContent = text;
-  chatContainer.appendChild(bubble);
-  chatContainer.scrollTop = chatContainer.scrollHeight;
-});
-
-  const statusRef = ref(db, `chats/${sessionID}/status`);
-  onValue(statusRef, (snapshot) => {
-    const status = snapshot.val();
-    if (status === 'ended') {
-      const endMsg = document.createElement('div');
-      endMsg.className = 'system';
-      endMsg.textContent = 'This session has ended. Thank you for being here.';
-      chatContainer.appendChild(endMsg);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-  });
-}
+  </script>
+</body>
+</html>
