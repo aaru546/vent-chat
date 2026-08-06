@@ -189,20 +189,15 @@
           lastAIResponse = raw;
 
           let text = '';
-
-          if (typeof raw === 'string' && raw.trim().startsWith('{')) {
-            try {
-              const parsed = JSON.parse(raw);
-              text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || raw;
-            } catch(e) {
-              text = raw;
-            }
-          } else if (typeof raw === 'object' && raw !== null) {
-            text = raw.candidates?.[0]?.content?.parts?.[0]?.text 
-                   || JSON.stringify(raw);
-          } else {
-            text = raw;
+          
+          try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          } catch(e) {
+            text = typeof raw === 'string' ? raw : '';
           }
+
+          if (!text) return;
 
           const bubble = document.createElement('div');
           bubble.className = 'received';
